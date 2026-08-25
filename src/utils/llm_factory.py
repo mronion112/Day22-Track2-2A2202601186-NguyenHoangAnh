@@ -47,11 +47,13 @@ def get_llm(provider: str = None, temperature: float = 0.0):
 
     elif provider == "gemini":
         from langchain_google_genai import ChatGoogleGenerativeAI
-        return ChatGoogleGenerativeAI(
-            model=config.GEMINI_MODEL,
-            google_api_key=config.GOOGLE_API_KEY,
-            temperature=temperature,
-        )
+        kwargs = {
+            "model": config.GEMINI_MODEL,
+            "google_api_key": config.GOOGLE_API_KEY,
+        }
+        if not config.GEMINI_MODEL.startswith("gemini-3."):
+            kwargs["temperature"] = temperature
+        return ChatGoogleGenerativeAI(**kwargs)
 
     elif provider == "anthropic":
         from langchain_anthropic import ChatAnthropic
@@ -92,7 +94,7 @@ def get_embeddings(provider: str = None):
 
     Lưu ý quan trọng:
         - Anthropic KHÔNG có Embeddings API → tự động fallback về OpenAI embeddings
-        - OpenRouter cũng dùng OpenAI embeddings (không có API embeddings riêng)
+        - OpenRouter dùng endpoint embeddings OpenAI-compatible riêng
         - Ollama cần model embedding riêng (mặc định: nomic-embed-text)
           Cài đặt: ollama pull nomic-embed-text
 
@@ -105,7 +107,7 @@ def get_embeddings(provider: str = None):
     """
     provider = (provider or config.PROVIDER).lower()
 
-    if provider in ("openai", "openrouter"):
+    if provider == "openai":
         from langchain_openai import OpenAIEmbeddings
         kwargs = {
             "model": config.OPENAI_EMBEDDING_MODEL,
@@ -115,9 +117,38 @@ def get_embeddings(provider: str = None):
             kwargs["base_url"] = config.OPENAI_BASE_URL
         return OpenAIEmbeddings(**kwargs)
 
+    elif provider == "openrouter":
+        from langchain_openai import OpenAIEmbeddings
+        return OpenAIEmbeddings(
+            model=config.OPENROUTER_EMBEDDING_MODEL,
+            api_key=config.OPENROUTER_API_KEY,
+            base_url=config.OPENROUTER_BASE_URL,
+            check_embedding_ctx_length=False,
+            model_kwargs={"encoding_format": "float"},
+        )
+
     elif provider == "gemini":
+        import time
         from langchain_google_genai import GoogleGenerativeAIEmbeddings
-        return GoogleGenerativeAIEmbeddings(
+
+        class RateLimitedGoogleEmbeddings(GoogleGenerativeAIEmbeddings):
+            """Giữ mỗi cửa sổ Gemini dưới quota 100 embedding/phút."""
+
+            def embed_documents(self, texts, **kwargs):
+                vectors = []
+                batch_size = min(kwargs.pop("batch_size", 80), 80)
+                for start in range(0, len(texts), batch_size):
+                    if start:
+                        print("⏳ Chờ quota Gemini embeddings làm mới (61 giây) ...")
+                        time.sleep(61)
+                    vectors.extend(super().embed_documents(
+                        texts[start:start + batch_size],
+                        batch_size=batch_size,
+                        **kwargs,
+                    ))
+                return vectors
+
+        return RateLimitedGoogleEmbeddings(
             model=config.GEMINI_EMBEDDING_MODEL,
             google_api_key=config.GOOGLE_API_KEY,
         )

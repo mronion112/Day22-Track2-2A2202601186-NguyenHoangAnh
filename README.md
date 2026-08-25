@@ -1,5 +1,12 @@
 # Chào mừng các bạn đến với Day 22: LangSmith + Prompt Versioning
 
+## Thông tin sinh viên
+
+- **Họ và tên:** Nguyễn Hoàng Anh
+- **Mã sinh viên:** 2A2202601186
+- **Cohort/Khoá:** 4
+- **Ngày nộp:** 25/8
+
 ## Tổng quan
 
 Trong lab này, bạn sẽ xây dựng một hệ thống hỏi đáp hoàn chỉnh tích hợp nhiều công nghệ AI hiện đại:
@@ -63,7 +70,7 @@ Mở tệp `.env` và điền các giá trị sau:
 # LangSmith — bắt buộc cho tất cả các bước
 LANGSMITH_API_KEY=lsv2_...
 LANGSMITH_PROJECT=day22-lab
-LANGCHAIN_TRACING_V2=true
+LANGSMITH_TRACING=true
 
 # Chọn một trong các provider bên dưới
 PROVIDER=openai
@@ -77,21 +84,27 @@ GOOGLE_API_KEY=AIza...
 # Anthropic (nếu dùng PROVIDER=anthropic)
 ANTHROPIC_API_KEY=sk-ant-...
 
-# OpenRouter (nếu dùng PROVIDER=openrouter)
+# OpenRouter (nếu dùng PROVIDER=openrouter; cùng key cho chat và embeddings)
 OPENROUTER_API_KEY=sk-or-...
+OPENROUTER_EMBEDDING_MODEL=nvidia/nemotron-3-embed-1b:free
 ```
+
+`config.py` ưu tiên các biến canonical `LANGSMITH_API_KEY` và
+`LANGSMITH_PROJECT`, đồng thời hỗ trợ alias cũ `LANGCHAIN_API_KEY` và
+`LANGCHAIN_PROJECT`. Các alias tracing/endpoint tương ứng cũng được đồng bộ vào
+môi trường trước khi import LangChain.
 
 ### 3. Chọn LLM provider
 
 Đặt biến `PROVIDER` trong `.env` thành một trong các giá trị sau:
 
-| Giá trị      | Nhà cung cấp      | Ghi chú                         |
-|--------------|-------------------|---------------------------------|
-| `openai`     | OpenAI GPT        | Mặc định, ổn định nhất          |
-| `gemini`     | Google Gemini     | Miễn phí với quota giới hạn     |
-| `anthropic`  | Anthropic Claude  | Chất lượng cao                  |
-| `ollama`     | Ollama (local)    | Không cần API key, cần GPU/CPU  |
-| `openrouter` | OpenRouter        | Tổng hợp nhiều model            |
+| Giá trị      | Nhà cung cấp      | Ghi chú                                      |
+|--------------|-------------------|----------------------------------------------|
+| `openai`     | OpenAI GPT        | Mặc định, ổn định nhất                       |
+| `gemini`     | Google Gemini     | Miễn phí với quota giới hạn                  |
+| `anthropic`  | Anthropic Claude  | Chất lượng cao                               |
+| `ollama`     | Ollama (local)    | Không cần API key, cần GPU/CPU               |
+| `openrouter` | OpenRouter        | Cùng API key cho chat và embeddings          |
 
 ### 4. Xác minh cài đặt
 
@@ -246,12 +259,12 @@ Nộp URL GitHub repository và URL LangSmith project của bạn qua cổng n�
 ## Tips và lưu ý
 
 **LangSmith tracing — đặt biến môi trường đúng thứ tự:**
-Các biến `LANGCHAIN_TRACING_V2`, `LANGSMITH_API_KEY`, và `LANGSMITH_PROJECT` phải được đặt **trước khi import bất kỳ thứ gì từ LangChain**. Nếu import trước khi đặt biến, tracing sẽ không hoạt động.
+Các biến `LANGSMITH_TRACING`, `LANGSMITH_API_KEY`, và `LANGSMITH_PROJECT` phải được đặt **trước khi import bất kỳ thứ gì từ LangChain**. `config.py` cũng chấp nhận và đồng bộ các alias `LANGCHAIN_*` cũ. Nếu import trước khi đặt biến, tracing sẽ không hoạt động.
 
 ```python
 import os
-os.environ["LANGCHAIN_TRACING_V2"] = "true"   # Phải đặt trước
-os.environ["LANGSMITH_API_KEY"]    = "..."     # Phải đặt trước
+os.environ["LANGSMITH_TRACING"] = "true"   # Phải đặt trước
+os.environ["LANGSMITH_API_KEY"] = "..."    # Phải đặt trước
 from langchain_core.prompts import ChatPromptTemplate  # Sau đó mới import
 ```
 

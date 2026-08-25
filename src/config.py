@@ -2,7 +2,7 @@
 Tải cấu hình từ file .env và thiết lập biến môi trường LangSmith.
 
 ⚠️  Import module này TRƯỚC KHI import bất kỳ thư viện LangChain nào.
-    config.py tự động set LANGCHAIN_* vào os.environ khi được import.
+    config.py tự động set các biến LANGSMITH_* canonical và alias LANGCHAIN_*.
 """
 import os
 from pathlib import Path
@@ -13,10 +13,21 @@ _root = Path(__file__).parent.parent
 load_dotenv(_root / ".env")
 
 # ── LangSmith — PHẢI set trước khi import LangChain ──────────────────────
-os.environ["LANGCHAIN_TRACING_V2"] = os.getenv("LANGCHAIN_TRACING_V2", "true")
-os.environ["LANGCHAIN_API_KEY"]    = os.getenv("LANGCHAIN_API_KEY", "")
-os.environ["LANGCHAIN_PROJECT"]    = os.getenv("LANGCHAIN_PROJECT", "day22-lab")
-os.environ["LANGCHAIN_ENDPOINT"]   = os.getenv("LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com")
+LANGSMITH_TRACING = os.getenv("LANGSMITH_TRACING", os.getenv("LANGCHAIN_TRACING_V2", "true"))
+LANGSMITH_API_KEY = os.getenv("LANGSMITH_API_KEY") or os.getenv("LANGCHAIN_API_KEY", "")
+LANGSMITH_PROJECT = os.getenv("LANGSMITH_PROJECT") or os.getenv("LANGCHAIN_PROJECT", "day22-lab")
+LANGSMITH_ENDPOINT = os.getenv("LANGSMITH_ENDPOINT") or os.getenv(
+    "LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com"
+)
+
+os.environ["LANGSMITH_TRACING"] = LANGSMITH_TRACING
+os.environ["LANGSMITH_API_KEY"] = LANGSMITH_API_KEY
+os.environ["LANGSMITH_PROJECT"] = LANGSMITH_PROJECT
+os.environ["LANGSMITH_ENDPOINT"] = LANGSMITH_ENDPOINT
+os.environ["LANGCHAIN_TRACING_V2"] = LANGSMITH_TRACING
+os.environ["LANGCHAIN_API_KEY"] = LANGSMITH_API_KEY
+os.environ["LANGCHAIN_PROJECT"] = LANGSMITH_PROJECT
+os.environ["LANGCHAIN_ENDPOINT"] = LANGSMITH_ENDPOINT
 
 # ── Provider mặc định ─────────────────────────────────────────────────────
 # Đổi giá trị PROVIDER trong .env: openai | gemini | anthropic | ollama | openrouter
@@ -30,8 +41,8 @@ OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-s
 
 # ── Google Gemini ─────────────────────────────────────────────────────────
 GOOGLE_API_KEY          = os.getenv("GOOGLE_API_KEY", "")
-GEMINI_MODEL            = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-GEMINI_EMBEDDING_MODEL  = os.getenv("GEMINI_EMBEDDING_MODEL", "models/embedding-001")
+GEMINI_MODEL            = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
+GEMINI_EMBEDDING_MODEL  = os.getenv("GEMINI_EMBEDDING_MODEL", "models/gemini-embedding-2")
 
 # ── Anthropic ─────────────────────────────────────────────────────────────
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
@@ -43,13 +54,12 @@ OLLAMA_MODEL            = os.getenv("OLLAMA_MODEL", "llama3.1")
 OLLAMA_EMBEDDING_MODEL  = os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text")
 
 # ── OpenRouter ────────────────────────────────────────────────────────────
-OPENROUTER_API_KEY  = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_MODEL    = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-
-# ── LangSmith ─────────────────────────────────────────────────────────────
-LANGSMITH_API_KEY = os.getenv("LANGCHAIN_API_KEY", "")
-LANGSMITH_PROJECT = os.getenv("LANGCHAIN_PROJECT", "day22-lab")
+OPENROUTER_API_KEY       = os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_MODEL         = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
+OPENROUTER_EMBEDDING_MODEL = os.getenv(
+    "OPENROUTER_EMBEDDING_MODEL", "nvidia/nemotron-3-embed-1b:free"
+)
+OPENROUTER_BASE_URL      = "https://openrouter.ai/api/v1"
 
 
 def validate() -> bool:
@@ -60,7 +70,7 @@ def validate() -> bool:
     missing = []
 
     if not LANGSMITH_API_KEY:
-        missing.append("LANGCHAIN_API_KEY (LangSmith)")
+        missing.append("LANGSMITH_API_KEY hoặc LANGCHAIN_API_KEY (LangSmith)")
 
     if PROVIDER == "openai" and not OPENAI_API_KEY:
         missing.append("OPENAI_API_KEY")

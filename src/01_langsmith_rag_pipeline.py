@@ -15,7 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 # ⚠️ QUAN TRỌNG: Import config TRƯỚC KHI import bất kỳ thư viện LangChain nào.
-# config.py tự động đặt LANGCHAIN_TRACING_V2, LANGCHAIN_API_KEY, ... vào os.environ
+# config.py đồng bộ các biến tracing canonical LANGSMITH_* và alias LANGCHAIN_*.
 import config
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -30,82 +30,49 @@ from qa_pairs import SAMPLE_QUESTIONS
 
 # ── 1. Thiết lập Vectorstore ───────────────────────────────────────────────
 def setup_vectorstore():
-    """
-    Tải knowledge base, chia chunks và tạo FAISS vectorstore.
-
-    Gợi ý:
-        embeddings  = get_embeddings()
-        text        = load_knowledge_base()
-        chunks      = split_text(text, chunk_size=500, chunk_overlap=50)
-        vectorstore = build_vectorstore(chunks, embeddings)
-    """
-    # TODO: Khởi tạo embeddings từ factory (1 dòng)
-    embeddings = ...
-
-    # TODO: Đọc nội dung knowledge base (1 dòng)
-    text = ...
-
-    # TODO: Chia text thành chunks với chunk_size=500, chunk_overlap=50 (1 dòng)
-    chunks = ...
+    """Tải knowledge base, chia chunks 500/50 và tạo FAISS vectorstore."""
+    embeddings = get_embeddings()
+    text = load_knowledge_base()
+    chunks = split_text(text, chunk_size=500, chunk_overlap=50)
     print(f"📚 Đã chia thành {len(chunks)} chunks")
-
-    # TODO: Tạo FAISS vectorstore và trả về (1 dòng)
-    vectorstore = ...
-    return vectorstore
+    return build_vectorstore(chunks, embeddings)
 
 
 # ── 2. RAG Prompt Template ─────────────────────────────────────────────────
-# TODO: Tạo ChatPromptTemplate với 2 messages:
-#   ("system", "Bạn là trợ lý AI hữu ích. Chỉ dùng context sau để trả lời.\n\nContext:\n{context}")
-#   ("human",  "{question}")
-#
-# Gợi ý: RAG_PROMPT = ChatPromptTemplate.from_messages([...])
-RAG_PROMPT = ...
+RAG_PROMPT = ChatPromptTemplate.from_messages([
+    (
+        "system",
+        "Bạn là trợ lý AI hữu ích. Chỉ trả lời dựa trên context được cung cấp. "
+        "Nếu context không chứa câu trả lời, hãy nói "
+        "'Tôi không tìm thấy thông tin này'.\n\nContext:\n{context}",
+    ),
+    ("human", "{question}"),
+])
 
 
 # ── 3. Build RAG Chain ─────────────────────────────────────────────────────
 def build_rag_chain(vectorstore):
-    """
-    Xây dựng LCEL RAG chain theo cấu trúc pipe:
+    """Xây dựng LCEL chain và retriever lấy ba tài liệu gần nhất."""
+    llm = get_llm()
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+
+    def format_docs(docs):
+        return "\n\n".join(doc.page_content for doc in docs)
+
+    chain = (
         {"context": retriever | format_docs, "question": RunnablePassthrough()}
         | RAG_PROMPT
         | llm
         | StrOutputParser()
-
-    Trả về: (chain, retriever)
-    """
-    llm = get_llm()
-
-    # TODO: Tạo retriever từ vectorstore, lấy k=3 tài liệu gần nhất
-    # Gợi ý: retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
-    retriever = ...
-
-    # TODO: Định nghĩa hàm format_docs để ghép page_content của các docs thành 1 chuỗi
-    # Gợi ý: "\n\n".join(doc.page_content for doc in docs)
-    def format_docs(docs):
-        ...
-
-    # TODO: Xây dựng LCEL chain dùng pipe operator (|)
-    # Gợi ý:
-    #   chain = (
-    #       {"context": retriever | format_docs, "question": RunnablePassthrough()}
-    #       | RAG_PROMPT | llm | StrOutputParser()
-    #   )
-    chain = ...
-
+    )
     return chain, retriever
 
 
 # ── 4. Hàm Query có LangSmith Tracing ─────────────────────────────────────
-# TODO: Thêm decorator @traceable(name="rag-query", tags=["rag", "step1"])
-#       phía TRÊN chữ ký hàm để LangSmith tự động ghi lại input/output/latency
+@traceable(name="rag-query", tags=["rag", "step1"])
 def ask(chain, question: str) -> str:
-    """
-    Chạy RAG chain với một câu hỏi.
-    Decorator @traceable sẽ gửi mỗi lần gọi lên LangSmith như một trace riêng.
-    """
-    # TODO: Gọi chain.invoke(question) và trả về kết quả
-    ...
+    """Chạy RAG chain; decorator ghi input, output và latency vào LangSmith."""
+    return chain.invoke(question)
 
 
 # ── 5. Main ────────────────────────────────────────────────────────────────
@@ -117,15 +84,11 @@ def main():
     if not config.validate():
         sys.exit(1)
 
-    # TODO: Gọi setup_vectorstore() để tạo vectorstore
-    vectorstore = ...
+    vectorstore = setup_vectorstore()
+    chain, _retriever = build_rag_chain(vectorstore)
 
-    # TODO: Gọi build_rag_chain(vectorstore) để nhận chain và retriever
-    chain, retriever = ...
-
-    # TODO: Lặp qua tất cả SAMPLE_QUESTIONS, gọi ask(), in câu hỏi và câu trả lời
     for i, question in enumerate(SAMPLE_QUESTIONS, 1):
-        answer = ...
+        answer = ask(chain, question)
         print(f"[{i:02d}/{len(SAMPLE_QUESTIONS)}] Q: {question[:60]}")
         print(f"       A: {str(answer)[:100]}\n")
 
